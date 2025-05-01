@@ -18,6 +18,7 @@
 
 namespace ParametricDramDirectoryMSI
 {
+
     SpecTLB::SpecTLB(Core *core, MemoryManager *_memory_manager, ShmemPerfModel *shmem_perf_model, String _name) : SpecEngineBase(core, _memory_manager, shmem_perf_model, _name), memory_manager(_memory_manager), name(_name)
     {
 

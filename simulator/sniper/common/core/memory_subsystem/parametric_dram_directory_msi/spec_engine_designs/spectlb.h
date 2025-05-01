@@ -2,11 +2,11 @@
 
 #include "mmu.h"
 #include "mmu_base.h"
-#include "mmu_midgard.h"
+// #include "mmu_midgard.h"
 #include "mmu_pomtlb.h"
 #include "mmu_range.h"
 #include "mmu_utopia.h"
-#include "iommu.h"
+// #include "iommu.h"
 #include "nested_mmu.h"
 #include "config.hpp"
 #include "mmu_spec.h"
@@ -75,5 +75,7 @@ namespace ParametricDramDirectoryMSI
          * @param modeled Boolean flag indicating whether the allocation is modeled.
          */
         void allocateInSpecEngine(IntPtr address, IntPtr ppn, int count, Core::lock_signal_t lock, IntPtr eip, bool modeled);
+
+        void invokeSpecEngine(IntPtr address, int count, Core::lock_signal_t lock, IntPtr eip, bool modeled){}
     };
 }

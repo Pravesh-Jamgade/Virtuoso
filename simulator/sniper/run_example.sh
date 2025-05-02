@@ -34,10 +34,10 @@ WORKLOAD=ls
 
 #Check if the command was successful by looking for sim.stats in the output directory
 
-if [ -f ./example_output/sim.stats ]; then
-    echo "Simulation completed successfully. Output is in ./example_output."
-else
-    echo "Simulation failed. Check the configuration and workload."
-fi
+# if [ -f ./example_output/sim.stats ]; then
+#     echo "Simulation completed successfully. Output is in ./example_output."
+# else
+#     echo "Simulation failed. Check the configuration and workload."
+# fi
 
-rm -rf ./example_output
+# rm -rf ./example_output

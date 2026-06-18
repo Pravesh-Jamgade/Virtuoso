@@ -1,0 +1,65 @@
+{'cmdline': ['./run-sniper',
+             '-c',
+             'config/address_translation_schemes/reservethp.cfg',
+             '-d',
+             './example_output',
+             '--genstats',
+             '--',
+             'ls'],
+ 'git_revision': '',
+ 'host': 'starship',
+ 'pin_version': 'unknown',
+ 'rusage': (0.0017829999999999999,
+            0.0017829999999999999,
+            17684,
+            0,
+            0,
+            0,
+            150,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0),
+ 'snipercmd': ['bash',
+               '-c',
+               '/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/lib/sniper '
+               '-c '
+               '/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/base.cfg '
+               '--general/total_cores=1 '
+               '--general/output_dir=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/example_output '
+               '--config=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/common_configs/base_system_sniperspace.cfg '
+               '--config=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/core_configs/meteor_lake_pcore.cfg '
+               '--config=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/mmu_configs/mmu_base.cfg '
+               '--config=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/pagetable_configs/4_level_radix.cfg '
+               '--config=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/pagetable_configs/range_table.cfg '
+               '--config=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/dram_configs/ddr4_2400_4channel.cfg '
+               '--config=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/physical_memory_allocators/reserve_thp.cfg '
+               '--config=/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/config/address_translation_schemes/reservethp.cfg '
+               '-g --traceinput/stop_with_first_app=true -g '
+               '--traceinput/restart_apps=false -g '
+               '--traceinput/stop_with_first_app=false -g '
+               '--traceinput/enabled=true -g '
+               '--traceinput/emulate_syscalls=true -g --traceinput/num_apps=1 '
+               '-g --traceinput/trace_prefix=/tmp/tmpt3b56a4f/run_benchmarks'],
+ 't_elapsed': 0.009594440460205078,
+ 't_start': 1781780965.2589853,
+ 'tracecmds': [['/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/record-trace',
+                '-o',
+                '/tmp/tmpt3b56a4f/run_benchmarks',
+                '-e',
+                '1',
+                '-s',
+                '0',
+                '-r',
+                '1',
+                '--follow',
+                '--routine-tracing',
+                '--',
+                'ls']],
+ 'user': 'pravesh',
+ 'vmem': 0}

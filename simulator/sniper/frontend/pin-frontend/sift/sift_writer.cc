@@ -1,1 +1,1 @@
-/mnt/panzer/kanellok/virtuoso_artifact/simulator/sniper/frontend/pin-frontend/../../sift/sift_writer.cc
+/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/frontend/pin-frontend/../../sift/sift_writer.cc

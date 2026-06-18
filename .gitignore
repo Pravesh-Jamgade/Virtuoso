@@ -73,3 +73,97 @@ workloads/llama.cpp/models/dolphin-2.9.3-mistral-nemo-12b-llamacppfixed.IQ3_M.gg
 workloads/llama.cpp/perf.data
 workloads/graph_data_sets/graph500-scale23-ef16_adj/edge.csv
 workloads/graph_data_sets/CL-10M-1d8-L5/edge.csv
+
+
+
+############
+// # Editor/OS files
+// *~
+// *.swp
+// *.swo
+// *.orig
+// .DS_Store
+
+// # Python artifacts
+// __pycache__/
+// *.py[cod]
+// *.pyo
+
+// # Build artifacts
+// build/
+// dist/
+// *.o
+// *.d
+// *.out
+
+// # Logs and temp files
+// *.log
+// *.tmp
+
+// # Virtual environments
+// .venv/
+// venv/
+
+// # Simulation outputs
+// results/
+// traces/
+
+// # Job files
+// *jobfile*.sh
+// python_kit/
+
+
+# Editor/OS files
+*~
+*.swp
+*.swo
+*.orig
+.DS_Store
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Build artifacts
+build/
+dist/
+*.o
+*.d
+*.out
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Virtual environments
+.venv/
+venv/
+
+# Simulation outputs
+results/
+traces/
+
+python_kit/*
+# Directories containing build artifacts or external tools
+simulator/sniper/decoder_lib/
+simulator/sniper/frontend/
+simulator/sniper/lib/
+simulator/sniper/mbuild/
+simulator/sniper/mcpat/
+simulator/sniper/python_kit/
+simulator/sniper/sift/
+simulator/sniper/xed_kit
+simulator/sniper/xed/
+*jobfile.sh
+# Job files
+*jobfile*.sh
+simulator/python_kit/
+simulator/sniper/**/*.so
+# Job files
+*jobfile*.sh
+simulator/python_kit/
+# Ignore specific configuration files
+simulator/sniper/config/buildconf.makefile
+simulator/sniper/config/buildconf.sh
+simulator/sniper/config/sniper.py

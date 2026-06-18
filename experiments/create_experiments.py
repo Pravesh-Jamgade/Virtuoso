@@ -280,6 +280,11 @@ def resolve_traces(
     ts = trace_suites.get(trace_suite_name)
     if not ts:
         print(f"Error: Trace suite '{trace_suite_name}' not defined in YAML.", file=sys.stderr)
+        available = list(trace_suites.keys())
+        if available:
+            print(f"Available trace suites: {', '.join(available)}", file=sys.stderr)
+        else:
+            print("No trace suites defined in YAML.", file=sys.stderr)
         sys.exit(1)
 
     base_rel = ts.get("tracelist_base_path")
@@ -356,7 +361,7 @@ def build_jobfile(
                             break
 
                 command = execution_command + sniper_parameters + cfg_flags + icache_flags + output_command + trace_arg
-
+                print(command)
                 sbatch_cmd = (
                     "sbatch --exclude=kratos17 -J {}_{} --output="
                     + os.path.join(output_directory, "slurm.out")
@@ -472,6 +477,18 @@ Examples:
             seen_cfgs.add(cfg)
             unique_cfg_names.append(cfg)
     all_cfg_names = unique_cfg_names
+    
+    # Validate that all referenced configs exist
+    configs_root = data.get("configs", {})
+    available_configs = list(configs_root.keys())
+    missing_configs = [cfg for cfg in all_cfg_names if cfg not in available_configs]
+    if missing_configs:
+        print(f"Error: Config(s) not defined in YAML: {', '.join(missing_configs)}", file=sys.stderr)
+        if available_configs:
+            print(f"Available configs: {', '.join(available_configs)}", file=sys.stderr)
+        else:
+            print("No configs defined in YAML.", file=sys.stderr)
+        sys.exit(1)
     
     # Warn if multiple trace suites are used
     if len(all_trace_suite_names) > 1:

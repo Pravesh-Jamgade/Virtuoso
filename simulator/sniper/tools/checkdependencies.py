@@ -20,7 +20,7 @@ headers_to_find = [
 def get_gcc_include_paths():
     try:
         # Run gcc command to get include paths
-        result = subprocess.run(['gcc', '-E', '-x', 'c', '-', '-v'], input='', stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(['gcc', '-E', '-x', 'c', '-', '-v'], input='', stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         include_paths = []
         capture = False
         for line in result.stderr.splitlines():

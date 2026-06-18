@@ -47,7 +47,7 @@ ifneq ($(BOOST_INCLUDE),)
 endif
 
 # Assuming python3 include dir is within the gcc search path
-PYTHON_LD_LIBS := $(shell python3-config --libs --embed)
+PYTHON_LD_LIBS := $(shell python3 -c "import sysconfig; print(' '.join(sysconfig.get_config_vars('LIBS', 'LIBM', 'LIBC', 'LIBDIR', 'LDLIBRARY', 'SYSLIBS'))) if 'LIBS' in sysconfig.get_config_vars() else print('-lpython3.6m')")
 LD_LIBS += -ldecoder -lsift -lxed -lrt -lz -lbz2 -llzma -lsqlite3 $(PYTHON_LD_LIBS)
 
 LD_FLAGS += -L$(SIM_ROOT)/lib -L$(SIM_ROOT)/decoder_lib/ -L$(SIM_ROOT)/sift -L$(XED_HOME)/lib
@@ -60,7 +60,7 @@ endif
 export LD_LIBRARY_PATH := $(SIM_ROOT)/lib:$(LD_LIBRARY_PATH)
 
 # Include paths
-PYTHON_INCLUD_PATH := $(shell python3-config --includes)
+PYTHON_INCLUD_PATH := $(shell python3 -c "import sysconfig; print('-I' + sysconfig.get_path('include'))")
 CPPFLAGS+=$(foreach dir,$(INCLUDE_DIRECTORIES),-I$(dir)) \
 	  $(PYTHON_INCLUD_PATH) \
           -I$(SIM_ROOT)/capstone/include -I$(SIM_ROOT)/capstone/include/capstone 

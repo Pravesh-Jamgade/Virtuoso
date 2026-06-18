@@ -1,16 +1,16 @@
 # Compiler and flags
 CC = gcc
 CXX = g++
-CFLAGS = -Wall -Wextra -g
-CXXFLAGS = -Wall -Wextra -g
-LDFLAGS =
+CFLAGS = -Wall -Wextra -g -fPIC
+CXXFLAGS = -Wall -Wextra -g -fPIC
+LDFLAGS = -shared
 
 # Directories
 SRC_DIR = ./src
 
 # SNIPER_INCLUDE points to the canonical MimicOS core headers (allocators, etc.)
 # Override with: make SNIPER_INCLUDE=/path/to/sniper/include
-SNIPER_INCLUDE ?= ../simulator/sniper/include
+SNIPER_INCLUDE ?= /app/simulator/sniper/include
 
 INCLUDE_DIR = -I./include/mm
 INCLUDE_DIR += -I./include/misc

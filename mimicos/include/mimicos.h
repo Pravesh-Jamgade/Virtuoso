@@ -5,7 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include "INIReader.h"
-#include "memory_management/physical_memory_allocators/physical_memory_allocator.h"
+#include <memory_management/physical_memory_allocators/physical_memory_allocator.h>
 #include "globals.h"
 
 // Forward declarations

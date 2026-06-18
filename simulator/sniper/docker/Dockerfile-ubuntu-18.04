@@ -1,15 +1,25 @@
 FROM ubuntu:18.04
 # Add i386 support for support for Pin
-RUN dpkg --add-architecture i386
-RUN apt-get update && apt-get install -y \
-    python \
+# 1. Enable 32-bit support and install PPA management tools
+RUN dpkg --add-architecture i386 && \
+    apt-get update && \
+    apt-get install -y python3.8 python3.8-distutils && \
+    apt-get install -y software-properties-common
+
+# 2. Add the repository, refresh, and install all packages
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test -y && \
+    apt-get update && \
+    apt-get install -y \
     screen \
     tmux \
     binutils \
     libc6:i386 \
     libncurses5:i386 \
     libstdc++6:i386 \
- && rm -rf /var/lib/apt/lists/*
+    python3-dev \
+    g++-11 && \
+    rm -rf /var/lib/apt/lists/*
+
 # For building Sniper
 RUN apt-get update && apt-get install -y \
     automake \
@@ -20,8 +30,12 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     zlib1g-dev \
     libbz2-dev \
-    g++-4.8 \
+    g++-11 \
  && rm -rf /var/lib/apt/lists/*
+
+ # Set GCC 11 as the default compiler
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 --slave /usr/bin/g++ g++ /usr/bin/g++-11
+
 # For building RISC-V Tools
 RUN apt-get update && apt-get install -y \
     autoconf \
@@ -50,3 +64,6 @@ RUN apt-get update && apt-get install -y \
     gdb \
     git \
  && rm -rf /var/lib/apt/lists/*
+
+# Link python to python2 if your tools expect 'python' command
+RUN ln -s /usr/bin/python2 /usr/bin/python

@@ -214,6 +214,9 @@
 #include "shmem_perf.h"
 #include "utopia_cache_template.h"
 #include <cstring>
+#include "thread.h"
+#include "mimicos.h"
+#include "pagetable.h"
 
 // Define to allow private L2 caches not to take the stack lock.
 // Works in most cases, but seems to have some more bugs or race conditions, preventing it from being ready for prime time.
@@ -515,6 +518,11 @@ namespace ParametricDramDirectoryMSI
 		registerStatsMetric(name, core_id, "spec-evict-total", &stats.spec_evict_total);
 		registerStatsMetric(name, core_id, "spec-evict-harmful", &stats.spec_evict_harmful);
 
+		for (int i = 0; i <= 8; ++i)
+		{
+			registerStatsMetric(name, core_id, String("pte-usage-") + itostr(i), &stats.pte_usage_histogram[i]);
+		}
+
 		for (CacheState::cstate_t state = CacheState::CSTATE_FIRST; state < CacheState::NUM_CSTATE_STATES; state = CacheState::cstate_t(int(state) + 1))
 		{
 			for (CacheBlockInfo::block_type_t type = CacheBlockInfo::block_type_t::PAGE_TABLE_DATA; type < CacheBlockInfo::block_type_t::NUM_BLOCK_TYPES; type = CacheBlockInfo::block_type_t(int(type) + 1))
@@ -686,6 +694,24 @@ namespace ParametricDramDirectoryMSI
 		{
 
 			cache_hit = operationPermissibleinCache(ca_address, mem_op_type, &cache_block_info);
+
+			bool is_pte_request = (block_type == CacheBlockInfo::block_type_t::PAGE_TABLE_DATA || block_type == CacheBlockInfo::block_type_t::PAGE_TABLE_INSTRUCTION);
+			if (cache_hit && is_pte_request)
+			{
+				IntPtr pte_address = ca_address + offset;
+				Core *core = Sim()->getCoreManager()->getCoreFromID(m_core_id);
+				int app_id = (core && core->getThread()) ? core->getThread()->getAppId() : 0;
+				PageTable *page_table = Sim()->getMimicOS()->getPageTable(app_id);
+				if (page_table && !page_table->isPTEValid(pte_address))
+				{
+					cache_hit = false;
+					if (cache_block_info)
+					{
+						cache_block_info->invalidate();
+						cache_block_info = NULL;
+					}
+				}
+			}
 		}
 
 		if (!cache_hit && m_perfect)
@@ -1265,6 +1291,24 @@ namespace ParametricDramDirectoryMSI
 		bool first_hit = cache_hit;
 		HitWhere::where_t hit_where = HitWhere::MISS;
 		SharedCacheBlockInfo *cache_block_info = getCacheBlockInfo(address);
+
+		bool is_pte_request = (block_type == CacheBlockInfo::block_type_t::PAGE_TABLE_DATA || block_type == CacheBlockInfo::block_type_t::PAGE_TABLE_INSTRUCTION);
+		if (cache_hit && is_pte_request)
+		{
+			IntPtr pte_address = address + offset;
+			Core *core = Sim()->getCoreManager()->getCoreFromID(m_core_id);
+			int app_id = (core && core->getThread()) ? core->getThread()->getAppId() : 0;
+			PageTable *page_table = Sim()->getMimicOS()->getPageTable(app_id);
+			if (page_table && !page_table->isPTEValid(pte_address))
+			{
+				cache_hit = first_hit = false;
+				if (cache_block_info)
+				{
+					cache_block_info->invalidate();
+					cache_block_info = NULL;
+				}
+			}
+		}
 
 		if (!cache_hit && m_perfect)
 		{
@@ -2025,6 +2069,22 @@ namespace ParametricDramDirectoryMSI
 				{
 					m_master->specEvictInsert(evict_address, m_master->m_l2_demand_count);
 					++stats.spec_evict_total;
+				}
+
+				// Track 8-byte PTE usage histogram on L2 cache eviction
+				if (m_mem_component == MemComponent::L2_CACHE && 
+				    (evict_block_info.getBlockType() == CacheBlockInfo::block_type_t::PAGE_TABLE_DATA))
+				{
+					UInt8 usage = evict_block_info.getUsage();
+					int ptes_used = 0;
+					for (int i = 0; i < 8; ++i)
+					{
+						if ((usage >> i) & 1)
+						{
+							ptes_used++;
+						}
+					}
+					stats.pte_usage_histogram[ptes_used]++;
 				}
 			}
 

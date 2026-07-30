@@ -135,6 +135,7 @@ namespace ParametricDramDirectoryMSI
 		String getType() { return type; };
 		virtual void deletePage(IntPtr address) {};
 		virtual int updatePageTableFrames(IntPtr address, IntPtr core_id, IntPtr ppn, int page_size, std::vector<UInt64> frames) = 0;
+		virtual bool isPTEValid(IntPtr physical_addr) { return true; }
 
 		// ----------------------------------------------------------------
 		// Shadow PTE payload API  (used by TLB prefetcher)

@@ -416,4 +416,34 @@ namespace ParametricDramDirectoryMSI
 
                 return os->getMemoryAllocator()->handle_page_table_allocations(size);
         }
+
+        PageTableRadix::PTFrame* PageTableRadix::findFrame(PTFrame* frame, IntPtr frame_ppn)
+        {
+                if (!frame) return NULL;
+                if (frame->emulated_ppn == frame_ppn) return frame;
+                for (int i = 0; i < m_frame_size; ++i)
+                {
+                        if (!frame->entries[i].is_pte && frame->entries[i].data.next_level)
+                        {
+                                PTFrame* found = findFrame(frame->entries[i].data.next_level, frame_ppn);
+                                if (found) return found;
+                        }
+                }
+                return NULL;
+        }
+
+        bool PageTableRadix::isPTEValid(IntPtr physical_addr)
+        {
+                IntPtr frame_ppn = physical_addr / 4096;
+                IntPtr offset = (physical_addr & 0xFFF) / 8;
+                PTFrame* frame = findFrame(root, frame_ppn);
+                if (frame && offset < m_frame_size)
+                {
+                        if (frame->entries[offset].is_pte)
+                        {
+                                return frame->entries[offset].data.translation.valid;
+                        }
+                }
+                return false;
+        }
     }

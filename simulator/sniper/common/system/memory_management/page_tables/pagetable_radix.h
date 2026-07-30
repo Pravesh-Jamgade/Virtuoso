@@ -64,5 +64,7 @@ namespace ParametricDramDirectoryMSI
 		IntPtr getPhysicalSpace(int size);
 		String getType() { return "radix"; };
 		int getMaxLevel() { return levels; };
+		bool isPTEValid(IntPtr physical_addr) override;
+		PTFrame* findFrame(PTFrame* frame, IntPtr frame_ppn);
 	};
 }

@@ -24,6 +24,7 @@ void HooksPy::init()
    #error "Unknown TARGET definition"
 #endif
 
+#if PY_VERSION_HEX >= 0x03080000
    PyStatus status;
    PyConfig config;
    PyConfig_InitIsolatedConfig(&config);
@@ -45,6 +46,13 @@ void HooksPy::init()
            exit(-1);
    }
    PyConfig_Clear(&config);
+#else
+   wchar_t *prog_name = Py_DecodeLocale(python_home.c_str(), NULL);
+   if (prog_name) {
+      Py_SetProgramName(prog_name);
+   }
+   Py_Initialize();
+#endif
 
    
    //Run the different scripts

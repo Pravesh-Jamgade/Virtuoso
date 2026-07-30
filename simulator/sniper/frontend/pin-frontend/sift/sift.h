@@ -1,1 +1,1 @@
-/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/frontend/pin-frontend/../../sift/sift.h
+/app/simulator/sniper/frontend/pin-frontend/../../sift/sift.h

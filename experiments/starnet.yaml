@@ -1,0 +1,44 @@
+trace_suite:
+  gap:
+  # relative to this yaml location
+    tracelist_base_path: "."
+    tracelists:
+      - bench.tlist
+
+configs:
+  configs_base_path: "../simulator/sniper/config/address_translation_schemes/"
+
+  # No translation (sanity check / upper bound)
+  no-translation:
+    name: "no-translation"
+    file: "no_translation.cfg"
+    description: "No address translation (sanity baseline)"
+
+  perfect-translation:
+    name: "perfect-translation"
+    file: "perfect_translation.cfg"
+    description: "Perfect translation with no page faults"
+  
+  l2-tlb-size-sweep:
+    name: "l2-tlb-size-sweep"
+    file: "userspace_baseline.cfg"
+    sweeps:
+      - identifier: ["l2-tlb-size"]
+        option: ["--perf_model/mmu/tlb_level_2/tlb1/size="]
+        values: [[4096, 8192, 16384, 32768, 65536, 131072]]
+    description: "L2 TLB size sweep with page-faults handled by VirtuOs"
+
+
+# we need to define:
+#-experiments --> needs to define for which all configs and a trace suite we want experiments
+#-configs --> then config must have been defined above
+#-gap --> must be defined above
+experiment_suites:
+  #experiment
+  general:
+    description: "initialstudy"
+    #config
+    configs: [perfect-translation, l2-tlb-size-sweep]
+    #trace_suite
+    trace_suite: gap
+    instruction_count: 300000000  # 300M instructions

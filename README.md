@@ -460,3 +460,5 @@ Virtuoso is released under the MIT License, consistent with the Sniper simulator
 For questions, please contact:
 - Konstantinos Kanellopoulos (<konkanello@gmail.com>)
 - Konstantinos Sgouras (<sgouraskon@gmail.com>)
+
+ python3 experiments/create_experiments.py --artifact-path . --yaml experiments/starnet.yaml  --suite perfect_translation

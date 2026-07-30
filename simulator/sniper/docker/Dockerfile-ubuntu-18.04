@@ -1,5 +1,6 @@
 FROM ubuntu:18.04
-# Add i386 support for support for Pin
+
+# Add i386 support for Pin
 # 1. Enable 32-bit support and install PPA management tools
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
@@ -16,7 +17,7 @@ RUN add-apt-repository ppa:ubuntu-toolchain-r/test -y && \
     libc6:i386 \
     libncurses5:i386 \
     libstdc++6:i386 \
-    python3-dev \
+    python3.8-dev \
     g++-11 && \
     rm -rf /var/lib/apt/lists/*
 
@@ -33,7 +34,7 @@ RUN apt-get update && apt-get install -y \
     g++-11 \
  && rm -rf /var/lib/apt/lists/*
 
- # Set GCC 11 as the default compiler
+# Set GCC 11 as the default compiler
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 --slave /usr/bin/g++ g++ /usr/bin/g++-11
 
 # For building RISC-V Tools
@@ -59,11 +60,15 @@ RUN apt-get update && apt-get install -y \
     texinfo \
     zlib1g-dev \
  && rm -rf /var/lib/apt/lists/*
+
 # Helper utilities
 RUN apt-get update && apt-get install -y \
     gdb \
     git \
  && rm -rf /var/lib/apt/lists/*
 
-# Link python to python2 if your tools expect 'python' command
-RUN ln -s /usr/bin/python2 /usr/bin/python
+# Install pip and map 'python'/'python3' aliases directly to Python 3.8 for the XED build
+RUN apt-get update && apt-get install -y python3-pip && \
+    ln -sf /usr/bin/python3.8 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3.8 /usr/bin/python && \
+    rm -rf /var/lib/apt/lists/*

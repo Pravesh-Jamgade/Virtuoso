@@ -1,0 +1,10 @@
+# Use your existing built image name here
+FROM your-existing-image-name:latest
+
+# Switch to root user if your image defaults to a non-root user
+USER root
+
+# Install the matching Python 3.8 headers
+RUN apt-get update && apt-get install -y \
+    python3.8-dev \
+ && rm -rf /var/lib/apt/lists/*

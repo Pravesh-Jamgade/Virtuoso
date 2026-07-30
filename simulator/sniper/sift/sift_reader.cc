@@ -14,8 +14,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "../../../../ChampSim/inc/trace_instruction.h"
-#include "../../../../ChampSim/inc/inf_stream.h"
+#include "trace_instruction.h"
+#include "inf_stream.h"
 
 // Enable (>0) to print out everything we read
 #define VERBOSE 0

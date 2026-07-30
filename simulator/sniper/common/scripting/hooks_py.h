@@ -7,8 +7,8 @@
 #include <Python.h>
 #include <string>
 
-#if PY_MAJOR_VERSION < 3 || PY_MINOR_VERSION < 8
-#error "Python version does not support some features used. Please upgrade to Pyhton 3.8 or higher."
+#if PY_MAJOR_VERSION < 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 6)
+#error "Python version does not support some features used. Please upgrade to Python 3.6 or higher."
 #endif
 
 class HooksPy {

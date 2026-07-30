@@ -1,1 +1,1 @@
-/media/pravesh/Storage/code/sims/artVirtuoso/simulator/sniper/frontend/pin-frontend/../../common/misc/fixed_types.h
+/app/simulator/sniper/frontend/pin-frontend/../../common/misc/fixed_types.h

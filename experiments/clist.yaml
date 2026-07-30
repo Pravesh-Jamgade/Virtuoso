@@ -40,6 +40,11 @@ trace_suite:
       - top250_safari.tlist
       - top250_ml.tlist
       - top250_virtuoso.tlist
+    
+  gap:
+    tracelist_base_path: "experiments/"
+    tracelists:
+      - bench.tlist
 
   google_delta_single:
     tracelist_base_path: "vm_tlist/"

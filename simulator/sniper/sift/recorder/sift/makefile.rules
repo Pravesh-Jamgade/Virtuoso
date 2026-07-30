@@ -45,7 +45,7 @@ LIB_ROOTS := libsift
 ##############################################################
 
 # See makefile.default.rules for the default build rules.
-TOOL_CXXFLAGS := -I$(SDE_ROOT)/include $(TOOL_CXXFLAGS)
+TOOL_CXXFLAGS := -I$(SDE_ROOT)/include -I$(ROOT_DIR)/../../include -I$(ROOT_DIR)/../../../include $(TOOL_CXXFLAGS)
 TOOL_CXXFLAGS += -DSDE_INIT -DPINPLAY -I$(PINPLAY_ROOT)/include
 
 ifeq ($(OS),Windows_NT)

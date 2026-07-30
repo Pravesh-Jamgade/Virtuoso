@@ -444,12 +444,19 @@ Examples:
     print_header("Create Experiments Suite")
     data = load_yaml(yaml_path)
 
+    # print(data)
+
     suites_data = data.get("experiment_suites", {})
+
+    # print(data)
     
     # Validate all requested suites exist
     suite_names = args.suite  # Now a list
+
+    print("suite names ", suite_names)
+    print("keys: ", suites_data.keys())
     for suite_name in suite_names:
-        if suite_name not in suites_data:
+        if suite_name not in list(suites_data.keys()):
             print(f"Error: Suite '{suite_name}' not found in YAML.", file=sys.stderr)
             available = list(suites_data.keys())
             print(f"Available suites: {', '.join(available)}", file=sys.stderr)
@@ -478,9 +485,15 @@ Examples:
             unique_cfg_names.append(cfg)
     all_cfg_names = unique_cfg_names
     
+    print("all cfg:", all_cfg_names)
+    
     # Validate that all referenced configs exist
     configs_root = data.get("configs", {})
     available_configs = list(configs_root.keys())
+    print(data.keys())
+    print(data.get('configs'))
+    print("avail cfg: ", available_configs)
+
     missing_configs = [cfg for cfg in all_cfg_names if cfg not in available_configs]
     if missing_configs:
         print(f"Error: Config(s) not defined in YAML: {', '.join(missing_configs)}", file=sys.stderr)

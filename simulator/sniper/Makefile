@@ -2,8 +2,9 @@ SIM_ROOT ?= $(shell readlink -f "$(CURDIR)")
 
 CLEAN=$(findstring clean,$(MAKECMDGOALS))
 
-STANDALONE=$(SIM_ROOT)/lib/sniper
-STANDALONE_DEV=$(SIM_ROOT)/lib/sniper_dev
+SNIPER_BIN ?= sniper
+STANDALONE=$(SIM_ROOT)/lib/$(SNIPER_BIN)
+STANDALONE_DEV=$(SIM_ROOT)/lib/$(SNIPER_BIN)_dev
 PIN_FRONTEND=$(SIM_ROOT)/frontend/pin-frontend/obj-intel64/pin_frontend
 DYNAMORIO_FRONTEND=$(SIM_ROOT)/frontend/dr-frontend/build/libdr-frontend.so
 LIB_CARBON=$(SIM_ROOT)/lib/libcarbon_sim.a

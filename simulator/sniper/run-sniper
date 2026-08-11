@@ -760,13 +760,15 @@ if standalone:
       f.write(' quit\n')
       f.write('end\n')
     f.close()
-    sniper_bin = 'sniper_dev' if use_dev else 'sniper'
+    sniper_base_bin = os.environ.get('SNIPER_BIN', 'sniper')
+    sniper_bin = sniper_base_bin + '_dev' if use_dev else sniper_base_bin
     gdbcmd = 'gdb -quiet --command=%(fn)s %(HOME)s/lib/%(sniper_bin)s --args ' % locals()
   elif use_wrap_sim:
     gdbcmd = '%(use_wrap_sim)s ' % locals()
   else:
     gdbcmd = ''
-  sniper_bin = 'sniper_dev' if use_dev else 'sniper'
+  sniper_base_bin = os.environ.get('SNIPER_BIN', 'sniper')
+  sniper_bin = sniper_base_bin + '_dev' if use_dev else sniper_base_bin
   cmd = gdbcmd + '%(HOME)s/lib/%(sniper_bin)s' % locals() + optcmd
 else:
   if follow_execv:

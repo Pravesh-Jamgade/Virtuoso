@@ -55,7 +55,8 @@ def run_multi(snipercmd, applications, repeat = False, outputdir = '.'):
 # Should take into account the current LD_LIBRARY_PATH
 def get_cxx_inuse(sim_root, clear_ldlibpath = False):
   pin_sim = None
-  for binary in ['%s/lib/pin_sim.so' % sim_root, '%s/lib/sniper' % sim_root]:
+  sniper_bin = os.environ.get('SNIPER_BIN', 'sniper')
+  for binary in ['%s/lib/pin_sim.so' % sim_root, '%s/lib/%s' % (sim_root, sniper_bin)]:
     if os.path.isfile(binary):
       pin_sim = binary
   if not pin_sim:

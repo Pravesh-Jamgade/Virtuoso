@@ -23,10 +23,11 @@ OBJECTS = $(patsubst %.c,%.o,$(patsubst %.cc,%.o,$(SOURCES)))
 
 ## build rules
 # Use SNIPER_DEV=1 to build lib/sniper_dev instead of lib/sniper
+SNIPER_BIN ?= sniper
 ifeq ($(SNIPER_DEV),1)
-TARGET = $(SIM_ROOT)/lib/sniper_dev
+TARGET = $(SIM_ROOT)/lib/$(SNIPER_BIN)_dev
 else
-TARGET = $(SIM_ROOT)/lib/sniper
+TARGET = $(SIM_ROOT)/lib/$(SNIPER_BIN)
 endif
 
 all: $(TARGET)

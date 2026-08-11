@@ -1,9 +1,12 @@
 #include "simulator.h"
 #include "cache.h"
+#include "pagetable.h"
 #include "log.h"
 #include "stats.h"
 #include "config.hpp"
 #include "debug_config.h"
+#include "metadata_info.h"
+#include "core_manager.h"
 #include <memory>
 #include <fstream>
 #include <tuple>
@@ -51,6 +54,8 @@ int bits_set(uint8_t x)
 
 	return __builtin_popcount(x);
 }
+
+bool Cache::s_file_initialized = false;
 
 Cache::Cache(
 	String name,
@@ -106,7 +111,9 @@ Cache::Cache(
 	for (int i = 0; i < 5; i++)
 		metadata_reuse[i] = 0;
 
-
+	memset(final_footprint_hist, 0, sizeof(final_footprint_hist));
+	memset(last_change_vs_final_footprint, 0, sizeof(last_change_vs_final_footprint));
+	memset(accesses_after_last_change_hist, 0, sizeof(accesses_after_last_change_hist));
 
 	reuse_levels[0] = 5; // kanellok Fix: these thresholds should be configurable
 	reuse_levels[1] = 10;
@@ -166,11 +173,32 @@ Cache::Cache(
 		registerStatsMetric(name, core_id, String("metadata-util-") + std::to_string(i).c_str(), &metadata_util[i]);
 	}
 
+	m_evicted_translation_pte_data = 0;
+	m_evicted_translation_pte_instr = 0;
+	m_evicted_data = 0;
+	m_evicted_instruction = 0;
+	m_evicted_prefetch_translation_pte_data = 0;
+	m_evicted_prefetch_translation_pte_instr = 0;
+	m_evicted_prefetch_data = 0;
+	m_evicted_prefetch_instruction = 0;
+	m_evicted_other = 0;
 
+	for (int i = 0; i < 9; ++i) {
+		m_evicted_pte_valid_hist_instr[i] = 0;
+		m_evicted_pte_valid_hist_data[i] = 0;
+		m_evicted_pte_valid_hist_prefetch[i] = 0;
+		m_evicted_pte_valid_hist_total[i] = 0;
+		m_evicted_pte_footprint_hist_instr[i] = 0;
+		m_evicted_pte_footprint_hist_data[i] = 0;
+		m_evicted_pte_footprint_hist_prefetch[i] = 0;
+		m_evicted_pte_footprint_hist_total[i] = 0;
+	}
 }
 
 Cache::~Cache()
 {
+	dumpPTEFootprintStats();
+	dumpUserStats();
 
 
 #ifdef ENABLE_SET_USAGE_HIST
@@ -329,6 +357,91 @@ Cache::accessSingleLine(IntPtr addr, access_t access_type,
 	if (tlb_entry && !(cache_block_info->isPageTableBlock()))
 		return NULL;
 
+	// LDIS Code Pravesh
+	// Check if this is a page table walk access
+	core_id_t current_core_id = Sim()->getCoreManager()->getCurrentCoreID();
+	if (MetadataContext::isValid(current_core_id) && cache_block_info->isPageTableBlock()) {
+		const MetadataInfo& info = MetadataContext::get(current_core_id);
+		if (info.is_metadata) {
+			// This is a page table walk access consuming this block!
+			int lru_pos = set->getRecencyBits(line_index);
+			
+			// Set level if not already set
+			if (cache_block_info->pte_stats.page_table_level == 0) {
+				cache_block_info->pte_stats.page_table_level = info.ptw_level;
+			}
+			
+			cache_block_info->pte_stats.total_pte_accesses++;
+			cache_block_info->pte_stats.last_change_lru_position = lru_pos;
+			cache_block_info->pte_stats.last_access_cycle = now.getInternalDataForced();
+
+			int pte_index = block_offset / 8;
+			uint8_t bit_mask = (1 << pte_index);
+			
+			// Record responsible PTE index if first access
+			if (cache_block_info->pte_stats.total_pte_accesses == 1) {
+				cache_block_info->pte_stats.initial_pte_index = pte_index;
+			}
+			
+			uint8_t footprint_before = cache_block_info->pte_stats.footprint;
+			if (!(cache_block_info->pte_stats.footprint & bit_mask)) {
+				// Footprint changes!
+				cache_block_info->pte_stats.footprint |= bit_mask;
+				cache_block_info->pte_stats.distinct_pte_count++;
+				
+				uint64_t prev_change_cycle = cache_block_info->pte_stats.last_footprint_change_cycle;
+				if (prev_change_cycle == 0) prev_change_cycle = cache_block_info->pte_stats.install_cycle;
+				
+				uint64_t cycle_diff = now.getInternalDataForced() - prev_change_cycle;
+				uint32_t acc_diff = cache_block_info->pte_stats.accesses_after_last_change;
+				
+				cache_block_info->pte_stats.last_footprint_change_cycle = now.getInternalDataForced();
+				cache_block_info->pte_stats.last_footprint_change_access_id = info.ptw_id;
+				cache_block_info->pte_stats.footprint_after_last_change = cache_block_info->pte_stats.footprint;
+				
+				if (lru_pos > cache_block_info->pte_stats.max_change_lru_position) {
+					cache_block_info->pte_stats.max_change_lru_position = lru_pos;
+				}
+				
+				cache_block_info->pte_stats.accesses_after_last_change = 0;
+				
+				// Handle tracking of up to 10 blocks for each footprint update
+				uint64_t inst_id = cache_block_info->pte_stats.block_instance_id;
+				bool is_tracked = false;
+				for (uint64_t tid : m_tracked_footprint_block_ids) {
+					if (tid == inst_id) { is_tracked = true; break; }
+				}
+				if (!is_tracked && m_tracked_footprint_block_ids.size() < 10) {
+					m_tracked_footprint_block_ids.push_back(inst_id);
+					is_tracked = true;
+				}
+				
+				if (is_tracked) {
+					int event_num = cache_block_info->pte_stats.distinct_pte_count;
+					uint64_t period_fs = 1000000; // 1 ns
+					
+					std::stringstream ss;
+					ss << inst_id << ","
+					   << "0x" << std::hex << (addr & ~63ULL) << std::dec << ","
+					   << (int)info.ptw_level << ","
+					   << event_num << ","
+					   << (now.getInternalDataForced() / period_fs) << ","
+					   << info.ptw_id << ","
+					   << lru_pos << ","
+					   << pte_index << ","
+					   << (int)footprint_before << ","
+					   << (int)cache_block_info->pte_stats.footprint << ","
+					   << (int)__builtin_popcount(cache_block_info->pte_stats.footprint) << ","
+					   << (cycle_diff / period_fs) << ","
+					   << acc_diff;
+					m_footprint_updates_log.push_back(ss.str());
+				}
+			} else {
+				cache_block_info->pte_stats.accesses_after_last_change++;
+			}
+		}
+	}
+
 	if (access_type == LOAD)
 	{
 		// NOTE: assumes error occurs in memory. If we want to model bus errors, insert the error into buff instead
@@ -388,9 +501,74 @@ void Cache::insertSingleLine(IntPtr addr, Byte *fill_buff,
 
 	*evict_addr = tagToAddress(evict_block_info->getTag());
 
+	// LDIS Code Pravesh
+	// Initialize pte_stats on the resident block
+	UInt32 line_idx = -1;
+	CacheBlockInfo *resident_block = nullptr;
+	CacheSet *target_set = (m_name == "L2" && metadata_request && metadata_passthrough_loc > 2) ? m_fake_sets[0] : m_sets[set_index];
+	resident_block = target_set->find(tag, &line_idx);
+	
+	if (resident_block && (btype == CacheBlockInfo::PAGE_TABLE_DATA || btype == CacheBlockInfo::PAGE_TABLE_INSTRUCTION)) {
+		resident_block->pte_stats.is_pte_block = true;
+		resident_block->pte_stats.block_address = addr;
+		static uint64_t global_instance_id = 0;
+		resident_block->pte_stats.block_instance_id = ++global_instance_id;
+		resident_block->pte_stats.install_lru_position = target_set->getRecencyBits(line_idx);
+		resident_block->pte_stats.install_cycle = now.getInternalDataForced();
+		
+		// If we can read the metadata context, we can get page_table_level and ptw_id
+		core_id_t current_core_id = Sim()->getCoreManager()->getCurrentCoreID();
+		if (MetadataContext::isValid(current_core_id)) {
+			const MetadataInfo& info = MetadataContext::get(current_core_id);
+			if (info.is_metadata) {
+				resident_block->pte_stats.page_table_level = info.ptw_level;
+				resident_block->pte_stats.install_access_id = info.ptw_id;
+			}
+		}
+	}
 
 	if ((*eviction) == true)
 	{
+		recordEviction(evict_block_info);
+		if (evict_block_info->pte_stats.is_pte_block) {
+			// Update histograms on eviction
+			uint32_t level = evict_block_info->pte_stats.page_table_level;
+			if (level < 5) {
+				int popc = __builtin_popcount(evict_block_info->pte_stats.footprint);
+				final_footprint_hist[level][popc]++;
+				
+				int max_lru = evict_block_info->pte_stats.max_change_lru_position;
+				if (max_lru < 0) max_lru = 0;
+				if (max_lru > 7) max_lru = 7;
+				last_change_vs_final_footprint[level][max_lru][popc]++;
+				
+				int bucket = 0;
+				uint32_t acc = evict_block_info->pte_stats.accesses_after_last_change;
+				if (acc == 0) bucket = 0;
+				else if (acc == 1) bucket = 1;
+				else if (acc == 2) bucket = 2;
+				else if (acc == 3) bucket = 3;
+				else if (acc == 4) bucket = 4;
+				else if (acc == 5) bucket = 5;
+				else if (acc == 6) bucket = 6;
+				else if (acc == 7) bucket = 7;
+				else if (acc == 8) bucket = 8;
+				else if (acc >= 9 && acc < 16) bucket = 9;
+				else if (acc >= 16 && acc < 32) bucket = 10;
+				else if (acc >= 32 && acc < 64) bucket = 11;
+				else if (acc >= 64 && acc < 128) bucket = 12;
+				else if (acc >= 128 && acc < 256) bucket = 13;
+				else if (acc >= 256 && acc < 512) bucket = 14;
+				else bucket = 15;
+				
+				accesses_after_last_change_hist[level][bucket]++;
+			}
+			
+			// Save the evicted block (first 50 evicted blocks only)
+			if (m_evicted_pte_blocks.size() < 50) {
+				m_evicted_pte_blocks.push_back(evict_block_info->pte_stats);
+			}
+		}
 
 		int reuse_value = evict_block_info->getReuse();
 
@@ -547,7 +725,10 @@ void Cache::insertSingleLineTLB(IntPtr addr, Byte *fill_buff,
 	m_sets[set_index]->insert(cache_block_info, fill_buff,
 							  eviction, evict_block_info, evict_buff, cntlr);
 	if (*eviction == true)
+	{
+		recordEviction(evict_block_info);
 		page_size = evict_block_info->getPageSize();
+	}
 	*evict_addr = tagToAddressTLB(evict_block_info->getTag(), page_size);
  
 
@@ -876,3 +1057,219 @@ Cache::logCacheContentDistribution(UInt64 access_count)
 
 #endif // DEBUG_L2_CONTENT
 }
+
+void Cache::dumpPTEFootprintStats()
+{
+	std::string filename = std::string(Sim()->getConfig()->getOutputDirectory().c_str()) + "/pte_footprint_characterization.csv";
+	
+	std::ofstream file;
+	if (!s_file_initialized) {
+		file.open(filename.c_str(), std::ios_base::out);
+		s_file_initialized = true;
+	} else {
+		file.open(filename.c_str(), std::ios_base::app);
+	}
+	
+	if (!file.is_open()) return;
+
+	file << "=== Cache: " << m_name << " (Core " << m_core_id << ") ===\n";
+	
+	// 1. Evicted blocks metadata
+	file << "block_instance_id,block_address,page_table_level,initial_pte_index,footprint,distinct_pte_count,total_pte_accesses,"
+		 << "install_lru_position,last_change_lru_position,max_change_lru_position,install_cycle,last_access_cycle,"
+		 << "last_footprint_change_cycle,install_access_id,last_footprint_change_access_id,footprint_after_last_change,"
+		 << "accesses_after_last_change\n";
+		 
+	for (const auto& stats : m_evicted_pte_blocks) {
+		uint64_t period_fs = 1000000; // 1 ns default
+		file << stats.block_instance_id << ","
+			 << "0x" << std::hex << stats.block_address << std::dec << ","
+			 << (int)stats.page_table_level << ","
+			 << (int)stats.initial_pte_index << ","
+			 << (int)stats.footprint << ","
+			 << (int)stats.distinct_pte_count << ","
+			 << stats.total_pte_accesses << ","
+			 << stats.install_lru_position << ","
+			 << stats.last_change_lru_position << ","
+			 << stats.max_change_lru_position << ","
+			 << (stats.install_cycle / period_fs) << ","
+			 << (stats.last_access_cycle / period_fs) << ","
+			 << (stats.last_footprint_change_cycle / period_fs) << ","
+			 << stats.install_access_id << ","
+			 << stats.last_footprint_change_access_id << ","
+			 << (int)stats.footprint_after_last_change << ","
+			 << stats.accesses_after_last_change << "\n";
+	}
+	
+	// 2. Footprint updates log
+	file << "\n--- Footprint Updates (10 tracked blocks) ---\n";
+	file << "block_instance_id,block_address,page_table_level,event_number,cycle,access_id,lru_position_before_hit,"
+		 << "pte_index,footprint_before,footprint_after,popcount_after,cycles_since_previous_change,accesses_since_previous_change\n";
+	for (const auto& log_row : m_footprint_updates_log) {
+		file << log_row << "\n";
+	}
+
+	// 3. Histograms
+	file << "\n--- Histograms ---\n";
+	file << "final_footprint_hist (Level vs Footprint Popcount 0..8):\n";
+	for (int l = 0; l < 5; ++l) {
+		file << "Level " << l;
+		for (int fp = 0; fp <= 8; ++fp) {
+			file << "," << final_footprint_hist[l][fp];
+		}
+		file << "\n";
+	}
+	
+	file << "\nlast_change_vs_final_footprint (Level vs MaxLRU 0..7 vs Footprint Popcount 0..8):\n";
+	for (int l = 0; l < 5; ++l) {
+		for (int lru = 0; lru < 8; ++lru) {
+			file << "Level " << l << " LRU " << lru;
+			for (int fp = 0; fp <= 8; ++fp) {
+				file << "," << last_change_vs_final_footprint[l][lru][fp];
+			}
+			file << "\n";
+		}
+	}
+	
+	file << "\naccesses_after_last_change_hist (Level vs Bucket 0..15):\n";
+	for (int l = 0; l < 5; ++l) {
+		file << "Level " << l;
+		for (int b = 0; b < 16; ++b) {
+			file << "," << accesses_after_last_change_hist[l][b];
+		}
+		file << "\n";
+	}
+	file << "\n";
+}
+
+void Cache::dumpUserStats()
+{
+	std::string filename = std::string(Sim()->getConfig()->getOutputDirectory().c_str()) + "/userstat.log";
+	
+	std::ofstream file;
+	static bool s_userstat_initialized = false;
+	if (!s_userstat_initialized) {
+		file.open(filename.c_str(), std::ios_base::out);
+		s_userstat_initialized = true;
+	} else {
+		file.open(filename.c_str(), std::ios_base::app);
+	}
+	
+	if (!file.is_open()) return;
+
+	file << "=== Cache: " << m_name << " (Core " << m_core_id << ") ===\n";
+	file << "Translation PTE (data): " << m_evicted_translation_pte_data << "\n";
+	file << "Translation PTE (instr): " << m_evicted_translation_pte_instr << "\n";
+	file << "Data: " << m_evicted_data << "\n";
+	file << "Instruction: " << m_evicted_instruction << "\n";
+	file << "Prefetch (translation data): " << m_evicted_prefetch_translation_pte_data << "\n";
+	file << "Prefetch (translation instr): " << m_evicted_prefetch_translation_pte_instr << "\n";
+	file << "Prefetch (data): " << m_evicted_prefetch_data << "\n";
+	file << "Prefetch (instruction): " << m_evicted_prefetch_instruction << "\n";
+	file << "Other metadata/types: " << m_evicted_other << "\n";
+	
+	file << "\nValid PTE count histogram on eviction (0..8):\n";
+	file << "Entries,0,1,2,3,4,5,6,7,8\n";
+	file << "Translation PTE (data)";
+	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_valid_hist_data[i];
+	file << "\n";
+	file << "Translation PTE (instr)";
+	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_valid_hist_instr[i];
+	file << "\n";
+	file << "Prefetch Translation PTE";
+	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_valid_hist_prefetch[i];
+	file << "\n";
+	file << "Total Translation PTEs";
+	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_valid_hist_total[i];
+	file << "\n";
+
+	file << "\nPTE footprint histogram on eviction (0..8):\n";
+	file << "Footprint,0,1,2,3,4,5,6,7,8\n";
+	file << "Translation PTE (data)";
+	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_footprint_hist_data[i];
+	file << "\n";
+	file << "Translation PTE (instr)";
+	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_footprint_hist_instr[i];
+	file << "\n";
+	file << "Prefetch Translation PTE";
+	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_footprint_hist_prefetch[i];
+	file << "\n";
+	file << "Total Translation PTEs";
+	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_footprint_hist_total[i];
+	file << "\n";
+	file << "--------------------------------------\n\n";
+
+	file.close();
+}
+
+void Cache::recordEviction(CacheBlockInfo *evict_block_info)
+{
+	if (!evict_block_info) return;
+	bool is_prefetch = evict_block_info->hasOption(CacheBlockInfo::PREFETCH);
+	CacheBlockInfo::block_type_t btype = evict_block_info->getBlockType();
+	if (btype == CacheBlockInfo::PAGE_TABLE_DATA) {
+		if (is_prefetch) m_evicted_prefetch_translation_pte_data++;
+		else m_evicted_translation_pte_data++;
+	} else if (btype == CacheBlockInfo::PAGE_TABLE_INSTRUCTION) {
+		if (is_prefetch) m_evicted_prefetch_translation_pte_instr++;
+		else m_evicted_translation_pte_instr++;
+	} else if (btype == CacheBlockInfo::DATA) {
+		if (is_prefetch) m_evicted_prefetch_data++;
+		else m_evicted_data++;
+	} else if (btype == CacheBlockInfo::INSTRUCTION) {
+		if (is_prefetch) m_evicted_prefetch_instruction++;
+		else m_evicted_instruction++;
+	} else {
+		m_evicted_other++;
+	}
+
+	if (btype == CacheBlockInfo::PAGE_TABLE_DATA || btype == CacheBlockInfo::PAGE_TABLE_INSTRUCTION) {
+		IntPtr evict_addr = tagToAddress(evict_block_info->getTag());
+		
+		PageTable *page_table = nullptr;
+		if (Sim() && Sim()->getCoreManager()) {
+			Core *core = Sim()->getCoreManager()->getCoreFromID(m_core_id);
+			if (core && core->getThread()) {
+				int app_id = core->getThread()->getAppId();
+				if (Sim()->getMimicOS()) {
+					page_table = Sim()->getMimicOS()->getPageTable(app_id);
+				}
+			}
+		}
+		
+		int valid_pte_count = 0;
+		if (page_table) {
+			for (int i = 0; i < 8; ++i) {
+				if (page_table->isPTEValid(evict_addr + i * 8)) {
+					valid_pte_count++;
+				}
+			}
+		}
+		
+		if (valid_pte_count >= 0 && valid_pte_count <= 8) {
+			m_evicted_pte_valid_hist_total[valid_pte_count]++;
+			if (is_prefetch) {
+				m_evicted_pte_valid_hist_prefetch[valid_pte_count]++;
+			} else if (btype == CacheBlockInfo::PAGE_TABLE_DATA) {
+				m_evicted_pte_valid_hist_data[valid_pte_count]++;
+			} else if (btype == CacheBlockInfo::PAGE_TABLE_INSTRUCTION) {
+				m_evicted_pte_valid_hist_instr[valid_pte_count]++;
+			}
+		}
+
+		int footprint_popc = __builtin_popcount(evict_block_info->pte_stats.footprint);
+		if (footprint_popc >= 0 && footprint_popc <= 8) {
+			m_evicted_pte_footprint_hist_total[footprint_popc]++;
+			if (is_prefetch) {
+				m_evicted_pte_footprint_hist_prefetch[footprint_popc]++;
+			} else if (btype == CacheBlockInfo::PAGE_TABLE_DATA) {
+				m_evicted_pte_footprint_hist_data[footprint_popc]++;
+			} else if (btype == CacheBlockInfo::PAGE_TABLE_INSTRUCTION) {
+				m_evicted_pte_footprint_hist_instr[footprint_popc]++;
+			}
+		}
+	}
+}
+
+
+

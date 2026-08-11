@@ -5,6 +5,36 @@
 #include "cache_state.h"
 #include "cache_base.h"
 
+struct PTEFootprintStats {
+	bool is_pte_block = false;
+	uint8_t page_table_level = 0;
+	// PTEs accessed while this block is resident
+	uint8_t footprint = 0;
+	// PTE responsible for initially bringing the block
+	uint8_t initial_pte_index = 0;
+	// Number of PTW accesses to this block
+	uint32_t total_pte_accesses = 0;
+	// Number of distinct PTEs used
+	uint8_t distinct_pte_count = 0;
+	// Cache replacement state observations
+	int install_lru_position = 0;
+	int last_change_lru_position = -1;
+	int max_change_lru_position = -1;
+	// Time and access sequence information
+	uint64_t install_cycle = 0;
+	uint64_t last_access_cycle = 0;
+	uint64_t last_footprint_change_cycle = 0;
+	uint64_t install_access_id = 0;
+	uint64_t last_footprint_change_access_id = 0;
+	// Footprint when last changed
+	uint8_t footprint_after_last_change = 0;
+	// Number of cache hits after footprint stopped growing
+	uint32_t accesses_after_last_change = 0;
+
+	uint64_t block_instance_id = 0;
+	IntPtr block_address = 0;
+};
+
 class CacheBlockInfo
 {
 public:
@@ -64,6 +94,7 @@ private:
 	static const char *option_names[];
 
 public:
+	PTEFootprintStats pte_stats;
 	CacheBlockInfo(IntPtr tag = ~0,
 				   CacheState::cstate_t cstate = CacheState::INVALID,
 				   UInt64 options = 0);

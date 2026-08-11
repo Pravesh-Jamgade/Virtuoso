@@ -65,6 +65,7 @@ void CacheBlockInfo::invalidate()
 {
    m_tag = ~0;
    m_cstate = CacheState::INVALID;
+   pte_stats = PTEFootprintStats();
 }
 
 void CacheBlockInfo::clone(CacheBlockInfo *cache_block_info)
@@ -78,7 +79,7 @@ void CacheBlockInfo::clone(CacheBlockInfo *cache_block_info)
    m_reuse = cache_block_info->getReuse();
    m_page_size = cache_block_info->getPageSize();
    ppn = cache_block_info->getPPN();
-
+   pte_stats = cache_block_info->pte_stats;
 }
 
 bool CacheBlockInfo::updateUsage(UInt32 offset, UInt32 size)

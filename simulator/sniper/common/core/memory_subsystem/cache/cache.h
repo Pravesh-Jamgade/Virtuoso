@@ -93,6 +93,40 @@ private:
 	bool m_content_log_initialized;
 	UInt64 m_total_accesses;  // Total accesses for logging trigger
 
+	// PTE footprint stats tracking
+	std::vector<PTEFootprintStats> m_evicted_pte_blocks;
+	std::vector<std::string> m_footprint_updates_log;
+	std::vector<uint64_t> m_tracked_footprint_block_ids;
+
+	uint64_t final_footprint_hist[5][9];
+	uint64_t last_change_vs_final_footprint[5][8][9];
+	uint64_t accesses_after_last_change_hist[5][16];
+	
+	// Eviction stats counters
+	UInt64 m_evicted_translation_pte_data;
+	UInt64 m_evicted_translation_pte_instr;
+	UInt64 m_evicted_data;
+	UInt64 m_evicted_instruction;
+	UInt64 m_evicted_prefetch_translation_pte_data;
+	UInt64 m_evicted_prefetch_translation_pte_instr;
+	UInt64 m_evicted_prefetch_data;
+	UInt64 m_evicted_prefetch_instruction;
+	UInt64 m_evicted_other;
+
+	// Evicted PTE valid entries histograms
+	UInt64 m_evicted_pte_valid_hist_instr[9];
+	UInt64 m_evicted_pte_valid_hist_data[9];
+	UInt64 m_evicted_pte_valid_hist_prefetch[9];
+	UInt64 m_evicted_pte_valid_hist_total[9];
+
+	// Evicted PTE footprint histograms
+	UInt64 m_evicted_pte_footprint_hist_instr[9];
+	UInt64 m_evicted_pte_footprint_hist_data[9];
+	UInt64 m_evicted_pte_footprint_hist_prefetch[9];
+	UInt64 m_evicted_pte_footprint_hist_total[9];
+
+	static bool s_file_initialized;
+
 public:
 	std::vector<uint64_t> m_page_walk_cacheblocks;	/* timeseries stats */
 
@@ -151,6 +185,15 @@ public:
 	
 	// Log cache content distribution (metadata vs data) - similar to NUCA cache
 	void logCacheContentDistribution(UInt64 access_count);
+
+	// Dump PTE footprint tracking stats at simulation end
+	void dumpPTEFootprintStats();
+	
+	// Dump user block type statistics at simulation end
+	void dumpUserStats();
+
+	// Record eviction stats helper
+	void recordEviction(CacheBlockInfo *evict_block_info);
 };
 
 template <class T>

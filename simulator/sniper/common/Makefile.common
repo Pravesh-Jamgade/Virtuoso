@@ -47,7 +47,7 @@ ifneq ($(BOOST_INCLUDE),)
 endif
 
 # Assuming python3 include dir is within the gcc search path
-PYTHON_LD_LIBS := $(shell python3-config --libs 2>/dev/null || python3 -c "import sysconfig; print('-lpython' + sysconfig.get_config_var('LDVERSION'))")
+PYTHON_LD_LIBS := $(shell python3-config --libs --embed 2>/dev/null || python3-config --libs 2>/dev/null || python3 -c "import sysconfig; print('-lpython' + sysconfig.get_config_var('LDVERSION'))")
 LZMA_LIB ?= $(shell echo "int main(){}" | $(CXX) -xc - -llzma -o /dev/null 2>/dev/null && echo "-llzma" || (test -f /lib/x86_64-linux-gnu/liblzma.so.5 && echo "-l:liblzma.so.5" || echo ""))
 LD_LIBS += -ldecoder -lsift -lxed -lrt -lz -lbz2 $(LZMA_LIB) -lsqlite3 $(PYTHON_LD_LIBS)
 

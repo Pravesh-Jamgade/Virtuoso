@@ -1,6 +1,8 @@
 #include "simulator.h"
 #include "cache.h"
 #include "pagetable.h"
+#include "thread.h"
+#include "mimicos.h"
 #include "log.h"
 #include "stats.h"
 #include "config.hpp"
@@ -192,6 +194,15 @@ Cache::Cache(
 		m_evicted_pte_footprint_hist_data[i] = 0;
 		m_evicted_pte_footprint_hist_prefetch[i] = 0;
 		m_evicted_pte_footprint_hist_total[i] = 0;
+	}
+
+	m_is_stlb = (name == "stlb" || name == "L2_TLB" || name == "stlb_0" || name == "stlb_1" || name == "stlb_2" || name == "stlb_3");
+	if (m_is_stlb) {
+		m_stlb_evicted.resize(m_num_sets, 0);
+		m_stlb_reused.resize(m_num_sets, 0);
+		m_stlb_inserted.resize(m_num_sets, 0);
+		m_stlb_set_accesses.resize(m_num_sets, 0);
+		m_stlb_eviction_history.resize(m_num_sets);
 	}
 }
 
@@ -480,6 +491,10 @@ void Cache::insertSingleLine(IntPtr addr, Byte *fill_buff,
 	UInt32 set_index;
 	splitAddress(addr, tag, set_index);
 
+	if (m_is_stlb) {
+		recordSTLBInsert(set_index, addr);
+	}
+
 	CacheBlockInfo *cache_block_info = CacheBlockInfo::create(m_cache_type);
 	cache_block_info->setTag(tag);
 	cache_block_info->setBlockType(btype);
@@ -530,6 +545,9 @@ void Cache::insertSingleLine(IntPtr addr, Byte *fill_buff,
 	if ((*eviction) == true)
 	{
 		recordEviction(evict_block_info);
+		if (m_is_stlb) {
+			recordSTLBEvict(set_index, *evict_addr);
+		}
 		if (evict_block_info->pte_stats.is_pte_block) {
 			// Update histograms on eviction
 			uint32_t level = evict_block_info->pte_stats.page_table_level;
@@ -716,6 +734,10 @@ void Cache::insertSingleLineTLB(IntPtr addr, Byte *fill_buff,
 	UInt32 set_index = 0;
 	splitAddressTLB(addr, tag, set_index, page_size);
 
+	if (m_is_stlb) {
+		recordSTLBInsert(set_index, addr);
+	}
+
 	CacheBlockInfo *cache_block_info = CacheBlockInfo::create(m_cache_type);
 	cache_block_info->setTag(tag);
 	cache_block_info->setBlockType(btype);
@@ -730,6 +752,10 @@ void Cache::insertSingleLineTLB(IntPtr addr, Byte *fill_buff,
 		page_size = evict_block_info->getPageSize();
 	}
 	*evict_addr = tagToAddressTLB(evict_block_info->getTag(), page_size);
+	if (*eviction == true && m_is_stlb)
+	{
+		recordSTLBEvict(set_index, *evict_addr);
+	}
  
 
 
@@ -1197,6 +1223,25 @@ void Cache::dumpUserStats()
 	file << "Total Translation PTEs";
 	for (int i = 0; i < 9; ++i) file << "," << m_evicted_pte_footprint_hist_total[i];
 	file << "\n";
+
+	if (m_is_stlb) {
+		file << "\n=== STLB Set Reuse Stats ===\n";
+		file << "Set,Evicted,Reused,Inserted\n";
+		for (UInt32 i = 0; i < m_num_sets; ++i) {
+			file << i << "," << m_stlb_evicted[i] << "," << m_stlb_reused[i] << "," << m_stlb_inserted[i] << "\n";
+		}
+		
+		file << "\n=== STLB Reuse Distance Histogram ===\n";
+		file << "Distance,Count\n";
+		std::vector<UInt64> distances;
+		for (auto const& [dist, count] : m_stlb_reuse_dist_hist) {
+			distances.push_back(dist);
+		}
+		std::sort(distances.begin(), distances.end());
+		for (UInt64 dist : distances) {
+			file << dist << "," << m_stlb_reuse_dist_hist[dist] << "\n";
+		}
+	}
 	file << "--------------------------------------\n\n";
 
 	file.close();
@@ -1226,7 +1271,7 @@ void Cache::recordEviction(CacheBlockInfo *evict_block_info)
 	if (btype == CacheBlockInfo::PAGE_TABLE_DATA || btype == CacheBlockInfo::PAGE_TABLE_INSTRUCTION) {
 		IntPtr evict_addr = tagToAddress(evict_block_info->getTag());
 		
-		PageTable *page_table = nullptr;
+		ParametricDramDirectoryMSI::PageTable *page_table = nullptr;
 		if (Sim() && Sim()->getCoreManager()) {
 			Core *core = Sim()->getCoreManager()->getCoreFromID(m_core_id);
 			if (core && core->getThread()) {
@@ -1269,6 +1314,36 @@ void Cache::recordEviction(CacheBlockInfo *evict_block_info)
 			}
 		}
 	}
+}
+
+void Cache::recordSTLBInsert(UInt32 set_index, IntPtr addr)
+{
+	if (!m_is_stlb) return;
+	if (set_index >= m_num_sets) return;
+
+	m_stlb_set_accesses[set_index]++;
+	m_stlb_inserted[set_index]++;
+
+	IntPtr block_addr = addr & ~63ULL;
+
+	auto it = m_stlb_eviction_history[set_index].find(block_addr);
+	if (it != m_stlb_eviction_history[set_index].end()) {
+		UInt64 distance = m_stlb_set_accesses[set_index] - it->second;
+		m_stlb_reused[set_index]++;
+		m_stlb_reuse_dist_hist[distance]++;
+		m_stlb_eviction_history[set_index].erase(it);
+	}
+}
+
+void Cache::recordSTLBEvict(UInt32 set_index, IntPtr evict_addr)
+{
+	if (!m_is_stlb) return;
+	if (set_index >= m_num_sets) return;
+
+	m_stlb_evicted[set_index]++;
+	
+	IntPtr block_addr = evict_addr & ~63ULL;
+	m_stlb_eviction_history[set_index][block_addr] = m_stlb_set_accesses[set_index];
 }
 
 

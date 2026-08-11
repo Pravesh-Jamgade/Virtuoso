@@ -35,7 +35,7 @@ struct CacheSnapshot {
 
 class Cache : public CacheBase
 {
-private:
+protected:
 	bool m_enabled;
 
 	// Cache counters
@@ -125,6 +125,17 @@ private:
 	UInt64 m_evicted_pte_footprint_hist_prefetch[9];
 	UInt64 m_evicted_pte_footprint_hist_total[9];
 
+protected:
+	// STLB specific tracking members
+	bool m_is_stlb;
+	std::vector<UInt64> m_stlb_evicted;
+	std::vector<UInt64> m_stlb_reused;
+	std::vector<UInt64> m_stlb_inserted;
+	std::vector<UInt64> m_stlb_set_accesses;
+	std::vector<std::unordered_map<IntPtr, UInt64>> m_stlb_eviction_history;
+	std::unordered_map<UInt64, UInt64> m_stlb_reuse_dist_hist;
+
+private:
 	static bool s_file_initialized;
 
 public:
@@ -145,21 +156,21 @@ public:
 
 	Lock &getSetLock(IntPtr addr);
 
-	bool invalidateSingleLine(IntPtr addr);
-	bool invalidateSingleLineTLB(IntPtr addr, int page_size);
-	bool containsTLB(IntPtr addr, int page_size) const;
-	CacheBlockInfo *accessSingleLine(IntPtr addr,
+	virtual bool invalidateSingleLine(IntPtr addr);
+	virtual bool invalidateSingleLineTLB(IntPtr addr, int page_size);
+	virtual bool containsTLB(IntPtr addr, int page_size) const;
+	virtual CacheBlockInfo *accessSingleLine(IntPtr addr,
 									 access_t access_type, Byte *buff, UInt32 bytes, SubsecondTime now, bool update_replacement, bool tlb_entry = false, bool is_metadata = false);
-	CacheBlockInfo *accessSingleLineTLB(IntPtr addr,
+	virtual CacheBlockInfo *accessSingleLineTLB(IntPtr addr,
 										access_t access_type, Byte *buff, UInt32 bytes, SubsecondTime now, bool update_replacement);
 
-	void insertSingleLine(IntPtr addr, Byte *fill_buff,
+	virtual void insertSingleLine(IntPtr addr, Byte *fill_buff,
 						  bool *eviction, IntPtr *evict_addr,
 						  CacheBlockInfo *evict_block_info, Byte *evict_buff, SubsecondTime now, CacheCntlr *cntlr = NULL, CacheBlockInfo::block_type_t btype = CacheBlockInfo::block_type_t::DATA);
-	void insertSingleLineTLB(IntPtr addr, Byte *fill_buff,
+	virtual void insertSingleLineTLB(IntPtr addr, Byte *fill_buff,
 							 bool *eviction, IntPtr *evict_addr,
 							 CacheBlockInfo *evict_block_info, Byte *evict_buff, SubsecondTime now, CacheCntlr *cntlr = NULL, CacheBlockInfo::block_type_t btype = CacheBlockInfo::block_type_t::DATA, int page_size = 12, IntPtr ppn = 0);
-	CacheBlockInfo *peekSingleLine(IntPtr addr);
+	virtual CacheBlockInfo *peekSingleLine(IntPtr addr);
 	CacheBlockInfo *peekBlock(UInt32 set_index, UInt32 way) const { return m_sets[set_index]->peekBlock(way); }
 	void updateSetReplacement(IntPtr addr);
 
@@ -194,6 +205,10 @@ public:
 
 	// Record eviction stats helper
 	void recordEviction(CacheBlockInfo *evict_block_info);
+
+	// STLB tracking helpers
+	void recordSTLBInsert(UInt32 set_index, IntPtr addr);
+	void recordSTLBEvict(UInt32 set_index, IntPtr evict_addr);
 };
 
 template <class T>

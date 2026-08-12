@@ -317,6 +317,8 @@ clean: empty_config empty_deps
 	$(_CMD) $(MAKE) $(MAKE_QUIET) -C sift clean
 	$(_MSG) '[CLEAN ] tools'
 	$(_CMD) $(MAKE) $(MAKE_QUIET) -C tools clean
+	$(_MSG) '[CLEAN ] decoder_lib'
+	$(_CMD) $(MAKE) $(MAKE_QUIET) -C decoder_lib clean
 	$(_MSG) '[CLEAN ] frontend/pin-frontend'
 	$(_CMD) if [ -d "$(PIN_HOME)" ]; then $(MAKE) $(MAKE_QUIET) -C frontend/pin-frontend clean ; fi
 	$(_MSG) '[CLEAN ] frontend/dr-frontend'

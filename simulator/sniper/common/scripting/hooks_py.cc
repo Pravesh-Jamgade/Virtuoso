@@ -83,8 +83,9 @@ void HooksPy::run_python_file_with_argv(const std::string &filename, const std::
     // Get the sys.argv list
     sys_argv = PyObject_GetAttrString(sys_module, "argv");
     if (sys_argv == NULL || !PyList_Check(sys_argv)) {
-        PyErr_Print();
-        return;
+        PyErr_Clear();
+        sys_argv = PyList_New(0);
+        PyObject_SetAttrString(sys_module, "argv", sys_argv);
     }
 
     // Clear the current sys.argv list
@@ -121,6 +122,10 @@ void HooksPy::run_python_file_with_argv(const std::string &filename, const std::
     }
 
     PyRun_SimpleFileEx(fp, filename.c_str(), 1);
+    if (PyErr_Occurred()) {
+        std::cout << "[HooksPy] Error occurred while running python file!" << std::endl;
+        PyErr_Print();
+    }
 }
 
 std::string HooksPy::get_root(){

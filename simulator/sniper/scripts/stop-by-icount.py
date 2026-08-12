@@ -5,11 +5,111 @@
 #        -s stop-by-icount:30000000:100000000 --roi-script     # Start in cache-warmup, switch to detailed after 100M instructions, and run for 30M in detailed
 #        -s stop-by-icount:30000000:roi+100000000 --roi-script # Start in cache-warmup, wait for application ROI, switch to detailed after 100M instructions, and run for 30M in detailed
 import sys
+if not hasattr(sys, 'argv') or not sys.argv:
+  sys.argv = [ 'stop-by-icount.py', '1000000000' ]
 import sim
 
 
 class StopByIcount:
 
+
+  def get_stat_safe(self, component, metric, core=None):
+    try:
+      if core is not None:
+        return float(sim.stats.get(component, core, metric))
+      total = 0.0
+      ncores = int(sim.config.get('general/total_cores'))
+      for c in range(ncores):
+        try:
+          total += float(sim.stats.get(component, c, metric))
+        except Exception:
+          pass
+      return total
+    except Exception:
+      return 0.0
+
+  def get_cache_hit_rate(self, component):
+    variations = [component]
+    if component == 'L3':
+      variations += ['l3_cache', 'L3-0', 'l3_cache-0', 'LLC', 'LLC-0', 'nuca', 'nuca-0', 'L3_cache']
+    elif component == 'L1-I':
+      variations += ['L1-I-0', 'l1-i']
+    elif component == 'L1-D':
+      variations += ['L1-D-0', 'l1-d']
+    elif component == 'L2':
+      variations += ['L2-0', 'l2-cache', 'l2']
+    
+    loads = 0.0
+    stores = 0.0
+    load_misses = 0.0
+    store_misses = 0.0
+    
+    for var in variations:
+      loads = self.get_stat_safe(var, 'tloads')
+      stores = self.get_stat_safe(var, 'tstores')
+      load_misses = self.get_stat_safe(var, 'tload-misses')
+      store_misses = self.get_stat_safe(var, 'tstore-misses')
+      if loads > 0 or stores > 0:
+        break
+        
+    accesses = loads + stores
+    misses = load_misses + store_misses
+    
+    if accesses > 0:
+      return (accesses - misses) / float(accesses)
+    else:
+      return 1.0
+
+  def log_heartbeat(self, icount, icount_delta):
+    ncores = int(sim.config.get('general/total_cores'))
+    instrs = float(icount - self.ninstrs_start)
+    if instrs < 0:
+      instrs = 0.0
+        
+    time_fs = float(sim.stats.time())
+    time_ns = time_fs / 1e6
+    
+    freq_mhz = float(sim.dvfs.get_frequency(0))
+    cycles = time_fs * freq_mhz / 1e9
+    ipc = instrs / cycles if cycles > 0 else 0.0
+    
+    pagefaults = 0.0
+    for core in range(ncores):
+      pagefaults += self.get_stat_safe('mmu_%d' % core, 'page_faults')
+      pagefaults += self.get_stat_safe('mmu_base_%d' % core, 'page_faults')
+      pagefaults += self.get_stat_safe('mmu_dmt_%d' % core, 'page_faults')
+      pagefaults += self.get_stat_safe('mmu_virt_%d' % core, 'page_faults')
+      pagefaults += self.get_stat_safe('mmu', 'page_faults', core)
+        
+    stlb_misses = 0.0
+    stlb_names = ['stlb', 'stlb-0', 'stlb_0', 'L2_TLB', 'L2_TLB-0', 'stlb_cache']
+    for name in stlb_names:
+      stlb_misses += self.get_stat_safe(name, 'misses')
+      stlb_misses += self.get_stat_safe(name, 'tload-misses')
+      stlb_misses += self.get_stat_safe(name, 'tstore-misses')
+        
+    dram_accesses = self.get_stat_safe('dram', 'reads') + self.get_stat_safe('dram', 'writes')
+    
+    l1_i_hit_rate = self.get_cache_hit_rate('L1-I')
+    l1_d_hit_rate = self.get_cache_hit_rate('L1-D')
+    l2_hit_rate = self.get_cache_hit_rate('L2')
+    llc_hit_rate = self.get_cache_hit_rate('L3')
+    
+    log_line = (
+      "[HEARTBEAT] Icount: %d | ROI Insts: %d | Time: %.3f ms | IPC: %.4f | "
+      "Pagefaults: %d | STLB Misses: %d | DRAM Accesses: %d | "
+      "L1-I HitRate: %.4f | L1-D HitRate: %.4f | L2 HitRate: %.4f | LLC HitRate: %.4f\n"
+    ) % (
+      icount, int(instrs), time_ns / 1e6, ipc,
+      int(pagefaults), int(stlb_misses), int(dram_accesses),
+      l1_i_hit_rate, l1_d_hit_rate, l2_hit_rate, llc_hit_rate
+    )
+    
+    output_dir = sim.config.get('general/output_dir')
+    with open(output_dir + '/heartbeat.log', 'a') as f_log:
+      f_log.write(log_line)
+    
+    print(log_line.strip())
 
   def _min_callback(self):
       return min(self.ninstrs_start if self.ninstrs_start else float('inf'), self.ninstrs, self.min_ins_global)
@@ -74,6 +174,10 @@ class StopByIcount:
       self.inroi = False
     print('[STOPBYICOUNT] Then stopping after simulating %s instructions in detail' % ((self.roi_rel and 'at least ' or '') + str(self.ninstrs)))
     self.done = False
+    with open(output_dir + '/heartbeat.log', 'w') as f_log:
+        f_log.write("Heartbeat Log Started\n")
+    self.heartbeat_interval = max(1, self.ninstrs // 10)
+    sim.util.EveryIns(self.heartbeat_interval, self.log_heartbeat, roi_only = True)
     sim.util.EveryIns(self._min_callback(), self.periodic, roi_only = (start == None))
 
 

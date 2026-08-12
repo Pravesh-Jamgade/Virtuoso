@@ -29,7 +29,11 @@ def register(obj):
       sim.hooks.register(hook, func)
 
   if hasattr(obj, 'setup') and callable(obj.setup):
-    obj.setup(sys.argv[1])
+    argv = getattr(sys, 'argv', None)
+    if argv and len(argv) > 1:
+      obj.setup(argv[1])
+    else:
+      obj.setup("")
 
 
 

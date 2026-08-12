@@ -13,7 +13,7 @@ SafarTlbCache::SafarTlbCache(String name,
                              hash_t hash,
                              FaultInjector *fault_injector,
                              AddressHomeLookup *ahl, bool is_tlb, int *page_size, int number_of_page_sizes)
-    : Cache(name, cfgname, core_id, num_sets, associativity, cache_block_size, replacement_policy, cache_type, hash, fault_injector, ahl, is_tlb, page_size, number_of_page_sizes)
+    : Cache(name, cfgname, core_id, num_sets, associativity, cache_block_size, "lru", cache_type, hash, fault_injector, ahl, is_tlb, page_size, number_of_page_sizes)
     , m_num_sets(num_sets)
     , m_associativity(associativity)
     , m_capacity(num_sets * associativity)

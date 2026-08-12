@@ -440,36 +440,18 @@ namespace ParametricDramDirectoryMSI
 		{
 			/* Master cache */
 			m_master = new CacheMasterCntlr(name, core_id, cache_params.outstanding_misses);
-			if (cache_params.replacement_policy == "safartlb")
-			{
-				m_master->m_cache = new SafarTlbCache(name,
-											  "perf_model/" + cache_params.configName,
-											  m_core_id,
-											  cache_params.num_sets,
-											  cache_params.associativity,
-											  m_cache_block_size,
-											  cache_params.replacement_policy,
-											  CacheBase::SHARED_CACHE,
-											  CacheBase::parseAddressHash(cache_params.hash_function),
-											  Sim()->getFaultinjectionManager()
-												  ? Sim()->getFaultinjectionManager()->getFaultInjector(m_core_id_master, mem_component)
-												  : NULL);
-			}
-			else
-			{
-				m_master->m_cache = new Cache(name,
-											  "perf_model/" + cache_params.configName,
-											  m_core_id,
-											  cache_params.num_sets,
-											  cache_params.associativity,
-											  m_cache_block_size,
-											  cache_params.replacement_policy,
-											  CacheBase::SHARED_CACHE,
-											  CacheBase::parseAddressHash(cache_params.hash_function),
-											  Sim()->getFaultinjectionManager()
-												  ? Sim()->getFaultinjectionManager()->getFaultInjector(m_core_id_master, mem_component)
-												  : NULL);
-			}
+			m_master->m_cache = new Cache(name,
+										  "perf_model/" + cache_params.configName,
+										  m_core_id,
+										  cache_params.num_sets,
+										  cache_params.associativity,
+										  m_cache_block_size,
+										  cache_params.replacement_policy,
+										  CacheBase::SHARED_CACHE,
+										  CacheBase::parseAddressHash(cache_params.hash_function),
+										  Sim()->getFaultinjectionManager()
+											  ? Sim()->getFaultinjectionManager()->getFaultInjector(m_core_id_master, mem_component)
+											  : NULL);
 
 			m_master->m_prefetcher = Prefetcher::createPrefetcher(cache_params.prefetcher, cache_params.configName, m_core_id, m_shared_cores);
 

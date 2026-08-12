@@ -17,6 +17,7 @@
 #include "fault_injection.h"
 #include "memory_manager.h"
 #include "debug_config.h"
+#include "safartlb.h"
 #include <cstdlib>
 
 
@@ -31,15 +32,7 @@ namespace ParametricDramDirectoryMSI
           m_num_entries(num_entries),
           m_num_sets(num_entries / associativity),
           entry_size(1L << 3),
-          m_cache(name + "_cache",
-                  cfgname,
-                  core_id, num_entries / associativity,
-                  associativity, entry_size,
-                  Sim()->getCfg()->hasKey(cfgname + "/replacement_policy")
-                     ? Sim()->getCfg()->getString(cfgname + "/replacement_policy") : "lru",
-                  CacheBase::PR_L1_CACHE, CacheBase::HASH_MASK,
-                  NULL,
-                  NULL, true, page_size_list, page_sizes),
+          m_cache(NULL),
           m_type(tlb_type),
           prefetchers(tpb),
           number_of_prefetchers(_number_of_prefetchers),
@@ -52,6 +45,32 @@ namespace ParametricDramDirectoryMSI
     {
         // Initialize SimLog for TLB (uses DEBUG_TLB flag)
         tlb_log = new SimLog(m_name.c_str(), core_id, DEBUG_TLB);
+
+        String replacement_policy = Sim()->getCfg()->hasKey(cfgname + "/replacement_policy")
+                     ? Sim()->getCfg()->getString(cfgname + "/replacement_policy") : "lru";
+
+        if (replacement_policy == "safartlb")
+        {
+            m_cache = new SafarTlbCache(name + "_cache",
+                                      cfgname,
+                                      core_id, num_entries / associativity,
+                                      associativity, entry_size,
+                                      replacement_policy,
+                                      CacheBase::PR_L1_CACHE, CacheBase::HASH_MASK,
+                                      NULL,
+                                      NULL, true, page_size_list, page_sizes);
+        }
+        else
+        {
+            m_cache = new Cache(name + "_cache",
+                                cfgname,
+                                core_id, num_entries / associativity,
+                                associativity, entry_size,
+                                replacement_policy,
+                                CacheBase::PR_L1_CACHE, CacheBase::HASH_MASK,
+                                NULL,
+                                NULL, true, page_size_list, page_sizes);
+        }
 
 
         LOG_ASSERT_ERROR((num_entries / associativity) * associativity == num_entries, "Invalid TLB configuration: num_entries(%d) must be a multiple of the associativity(%d)", num_entries, associativity);
@@ -148,7 +167,7 @@ namespace ParametricDramDirectoryMSI
 
         tlb_log->debug("Lookup for address: ", address, " at time: ", now.getNS(), " ns");
 
-        CacheBlockInfo *hit = m_cache.accessSingleLineTLB(address, Cache::LOAD, NULL, 0, now, true);
+        CacheBlockInfo *hit = m_cache->accessSingleLineTLB(address, Cache::LOAD, NULL, 0, now, true);
 
         // Detect whether the hit came from a prefetch-queue-sourced entry.
         // PQ-materialized entries are tagged with CacheBlockInfo::PREFETCH in allocate().
@@ -259,17 +278,17 @@ namespace ParametricDramDirectoryMSI
         IntPtr tag;
         UInt32 set_index;
 
-        m_cache.splitAddressTLB(address, tag, set_index, page_size);
+        m_cache->splitAddressTLB(address, tag, set_index, page_size);
 
         tlb_log->debug("Allocate ", address, " at level: ", m_name.c_str(), " with page_size ", page_size, " and tag ", tag);
 
         bool eviction = false;
-        m_cache.insertSingleLineTLB(address, NULL, &eviction, &evict_addr, &evict_block_info, NULL, now, NULL, CacheBlockInfo::block_type_t::DATA, page_size, ppn);
+        m_cache->insertSingleLineTLB(address, NULL, &eviction, &evict_addr, &evict_block_info, NULL, now, NULL, CacheBlockInfo::block_type_t::DATA, page_size, ppn);
 
         // Mark prefetch-queue-sourced entries so lookup() can detect PQ hits
         if (self_alloc)
         {
-            CacheBlockInfo *inserted = m_cache.accessSingleLineTLB(address, Cache::LOAD, NULL, 0, now, false);
+            CacheBlockInfo *inserted = m_cache->accessSingleLineTLB(address, Cache::LOAD, NULL, 0, now, false);
             if (inserted)
                 inserted->setOption(CacheBlockInfo::PREFETCH);
         }
@@ -325,7 +344,7 @@ namespace ParametricDramDirectoryMSI
     bool TLB::invalidate(IntPtr address, int page_size)
     {
         // Use the TLB-specific invalidation method that uses splitAddressTLB
-        bool invalidated = m_cache.invalidateSingleLineTLB(address, page_size);
+        bool invalidated = m_cache->invalidateSingleLineTLB(address, page_size);
         
         if (invalidated)
         {
@@ -338,12 +357,13 @@ namespace ParametricDramDirectoryMSI
     bool TLB::contains(IntPtr address, int page_size) const
     {
         // Check if entry exists without modifying anything (for sanity checks)
-        return m_cache.containsTLB(address, page_size);
+        return m_cache->containsTLB(address, page_size);
     }
 
     TLB::~TLB()
     {
         delete tlb_log;
+        delete m_cache;
         
         if (prefetchers != NULL)
         {

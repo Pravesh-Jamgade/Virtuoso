@@ -71,7 +71,7 @@ namespace ParametricDramDirectoryMSI
 		UInt32 m_num_sets;
 		UInt32 entry_size;
 
-		Cache m_cache;
+		Cache *m_cache;
 		String m_type;
 		TLBPrefetcherBase **prefetchers;
 		int number_of_prefetchers;
@@ -120,7 +120,7 @@ namespace ParametricDramDirectoryMSI
 		TLBtype getType() { return (m_type == "Instruction") ? Instruction : (m_type == "Data") ? Data
 																								: Unified; };
 		String getName() { return m_name; };
-		Cache& getCache() { return m_cache; };
+		Cache& getCache() { return *m_cache; };
 		int getAssoc() { return m_associativity; };
 		bool getAllocateOnMiss() { return m_allocate_miss; };
 		bool getPrefetch() { return m_prefetch; };

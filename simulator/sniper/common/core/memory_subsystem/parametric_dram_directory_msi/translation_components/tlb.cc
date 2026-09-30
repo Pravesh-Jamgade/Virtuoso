@@ -17,7 +17,6 @@
 #include "fault_injection.h"
 #include "memory_manager.h"
 #include "debug_config.h"
-#include "safartlb.h"
 #include <cstdlib>
 
 
@@ -49,28 +48,14 @@ namespace ParametricDramDirectoryMSI
         String replacement_policy = Sim()->getCfg()->hasKey(cfgname + "/replacement_policy")
                      ? Sim()->getCfg()->getString(cfgname + "/replacement_policy") : "lru";
 
-        if (replacement_policy == "safartlb")
-        {
-            m_cache = new SafarTlbCache(name + "_cache",
-                                      cfgname,
-                                      core_id, num_entries / associativity,
-                                      associativity, entry_size,
-                                      replacement_policy,
-                                      CacheBase::PR_L1_CACHE, CacheBase::HASH_MASK,
-                                      NULL,
-                                      NULL, true, page_size_list, page_sizes);
-        }
-        else
-        {
-            m_cache = new Cache(name + "_cache",
-                                cfgname,
-                                core_id, num_entries / associativity,
-                                associativity, entry_size,
-                                replacement_policy,
-                                CacheBase::PR_L1_CACHE, CacheBase::HASH_MASK,
-                                NULL,
-                                NULL, true, page_size_list, page_sizes);
-        }
+        m_cache = new Cache(name + "_cache",
+                            cfgname,
+                            core_id, num_entries / associativity,
+                            associativity, entry_size,
+                            replacement_policy,
+                            CacheBase::PR_L1_CACHE, CacheBase::HASH_MASK,
+                            NULL,
+                            NULL, true, page_size_list, page_sizes);
 
 
         LOG_ASSERT_ERROR((num_entries / associativity) * associativity == num_entries, "Invalid TLB configuration: num_entries(%d) must be a multiple of the associativity(%d)", num_entries, associativity);

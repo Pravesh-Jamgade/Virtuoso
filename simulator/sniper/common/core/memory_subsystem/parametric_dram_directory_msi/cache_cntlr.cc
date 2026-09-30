@@ -217,7 +217,6 @@
 #include "thread.h"
 #include "mimicos.h"
 #include "pagetable.h"
-#include "safartlb.h"
 
 // Define to allow private L2 caches not to take the stack lock.
 // Works in most cases, but seems to have some more bugs or race conditions, preventing it from being ready for prime time.
